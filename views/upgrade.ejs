@@ -5,9 +5,50 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Апгрейд — Costik Battle</title>
-<link rel="stylesheet" href="/style.css?v=2323">
+<link rel="stylesheet" href="/style.css?v=2400">
+<style>
+.upgrade-extra-box {
+  width:100%;
+  margin:18px 0;
+  padding:16px;
+  border:1px solid #34394e;
+  border-radius:12px;
+  background:#111625;
+  text-align:left;
+}
+.upgrade-extra-box label {
+  display:block;
+  margin-bottom:9px;
+  font-weight:bold;
+}
+.upgrade-extra-box input {
+  width:100%;
+  padding:13px;
+  border:1px solid #414965;
+  border-radius:8px;
+  background:#090e19;
+  color:white;
+  font-size:17px;
+}
+.upgrade-extra-info {
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  margin-top:12px;
+  color:#b8c0d5;
+  font-size:13px;
+}
+.upgrade-extra-info b {color:#69e6a0}
+.upgrade-hint {line-height:1.5}
+.upgrade-warning {
+  margin-top:10px;
+  color:#ffbd70;
+  font-size:12px;
+}
+</style>
 </head>
 <body>
+
 <header>
   <a class="logo" href="/">COSTIK <b>BATTLE</b></a>
   <nav>
@@ -15,37 +56,44 @@
     <a href="/inventory">ИНВЕНТАРЬ</a>
     <a href="/upgrade">АПГРЕЙД</a>
   </nav>
-  <b><%=user.display_name%> · <%=user.balance%> токенов</b>
+  <b><%=user.display_name%> · <span id="user-balance"><%=Number(user.balance).toLocaleString("ru-RU")%></span> токенов</b>
 </header>
 
 <main class="upgrade-page">
   <div class="upgrade-title">
-    <span>МОДЕРНИЗАЦИЯ ОРУЖИЯ 2.0</span>
-    <h1>АПГРЕЙД СКИНОВ</h1>
-    <p>Выбери предмет и цель, чтобы попытаться улучшить свой инвентарь</p>
+    <span>МОДЕРНИЗАЦИЯ ОРУЖИЯ 3.0</span>
+    <h1>АПГРЕЙД С ДОПЛАТОЙ</h1>
+    <p>Выбери свой скин, дорогую цель и увеличь шанс дополнительными токенами</p>
   </div>
 
   <section class="upgrade-layout upgrade-layout-cards">
+
     <div class="upgrade-side upgrade-card-panel">
       <div class="upgrade-panel-heading">
         <label>ТВОЙ ИНВЕНТАРЬ</label>
         <span id="source-count">0 предметов</span>
       </div>
+
       <input id="source-search" class="upgrade-search" type="search" placeholder="Поиск по инвентарю...">
+
       <select id="source-sort" class="upgrade-sort">
         <option value="price-desc">Сначала дорогие</option>
         <option value="price-asc">Сначала дешёвые</option>
         <option value="name">По названию</option>
       </select>
+
       <div id="source-grid" class="upgrade-skin-grid">
         <p class="upgrade-loading">Загрузка инвентаря...</p>
       </div>
+
       <input type="hidden" id="source">
+
       <div class="upgrade-selected-label">ВЫБРАННЫЙ ПРЕДМЕТ</div>
       <div class="upgrade-item" id="source-preview">Выбери предмет из инвентаря</div>
     </div>
 
     <div class="upgrade-center">
+
       <div class="wheel-shell">
         <div class="wheel" id="upgrade-wheel">
           <div class="wheel-inner">
@@ -55,12 +103,47 @@
         </div>
         <div class="wheel-pointer"></div>
       </div>
+
       <div class="chance-caption">
         <span>НИЗКИЙ ШАНС</span>
         <span>ВЫСОКИЙ РИСК</span>
       </div>
-      <button id="do-upgrade" class="btn upgrade-action" disabled>ПРОКАЧАТЬ</button>
-      <p class="upgrade-hint">При неудаче исходный предмет сгорает</p>
+
+      <div class="upgrade-extra-box">
+        <label for="extra-balance">ДОПЛАТА ТОКЕНАМИ</label>
+        <input
+          id="extra-balance"
+          type="number"
+          min="0"
+          max="100000000"
+          step="1"
+          value="0"
+          placeholder="Например: 2000"
+        >
+
+        <div class="upgrade-extra-info">
+          <span>Общая ставка:</span>
+          <b id="upgrade-stake">0 токенов</b>
+        </div>
+
+        <div class="upgrade-extra-info">
+          <span>Твоя доплата:</span>
+          <b id="upgrade-extra-value">0 токенов</b>
+        </div>
+
+        <p class="upgrade-warning">
+          При проигрыше исходный скин и доплата сгорают.
+        </p>
+      </div>
+
+      <button id="do-upgrade" class="btn upgrade-action" disabled>
+        ПРОКАЧАТЬ
+      </button>
+
+      <p class="upgrade-hint">
+        Чем больше доплата, тем выше шанс. Максимальный шанс — 90%.
+      </p>
+
       <div id="result" class="upgrade-result"></div>
     </div>
 
@@ -69,25 +152,33 @@
         <label>ВОЗМОЖНАЯ ЦЕЛЬ</label>
         <span id="target-count">0 предметов</span>
       </div>
+
       <input id="target-search" class="upgrade-search" type="search" placeholder="Поиск скина...">
+
       <div class="upgrade-filter-row">
         <select id="target-sort" class="upgrade-sort">
-          <option value="price-asc">Сначала дешёвые</option>
           <option value="price-desc">Сначала дорогие</option>
+          <option value="price-asc">Сначала дешёвые</option>
           <option value="name">По названию</option>
         </select>
+
         <input id="target-min" class="upgrade-price-filter" type="number" min="0" placeholder="От">
         <input id="target-max" class="upgrade-price-filter" type="number" min="0" placeholder="До">
       </div>
+
       <div id="target-grid" class="upgrade-skin-grid">
         <p class="upgrade-loading">Загрузка предметов...</p>
       </div>
+
       <input type="hidden" id="target">
+
       <div class="upgrade-selected-label">ВЫБРАННАЯ ЦЕЛЬ</div>
       <div class="upgrade-item" id="target-preview">Выбери желаемый предмет</div>
     </div>
+
   </section>
 </main>
-<script src="/app.js?v=2323"></script>
+
+<script src="/app.js?v=2400"></script>
 </body>
 </html>
