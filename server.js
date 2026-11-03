@@ -33,7 +33,8 @@ app.set("trust proxy",1);app.set("view engine","ejs");app.set("views",path.join(
 app.use(session({secret:process.env.SESSION_SECRET||"change-this-secret",resave:false,saveUninitialized:false,cookie:{httpOnly:true,sameSite:"lax",secure:process.env.NODE_ENV==="production",maxAge:604800000}}));app.use(passport.initialize());app.use(passport.session());
 passport.serializeUser((u,d)=>d(null,u.steam_id));passport.deserializeUser((id,d)=>{try{d(null,read()[id]||false)}catch(e){d(e)}});
 passport.use(new SteamStrategy({returnURL:`${BASE}/auth/steam/return`,realm:`${BASE}/`,apiKey:process.env.STEAM_API_KEY||"not-used"},(identifier,p,d)=>{try{d(null,save(p))}catch(e){d(e)}}));
-app.get("/",(q,s)=>s.render("index",{user:q.user||null,cases}));app.get("/inventory",(q,s)=>q.user?s.render("inventory",{user:q.user}):s.redirect("/auth/steam"));app.get("/upgrade",(q,s)=>q.user?s.render("upgrade",{user:q.user}):s.redirect("/auth/steam"));
+app.get("/",(q,s)=>s.render("index",{user:q.user||null,cases}));
+app.get("/case/:id",(q,s)=>{const c=cases.find(x=>x.id===q.params.id);if(!c)return s.status(404).send("Кейс не найден");s.render("case",{user:q.user||null,caseData:c,cases})});app.get("/inventory",(q,s)=>q.user?s.render("inventory",{user:q.user}):s.redirect("/auth/steam"));app.get("/upgrade",(q,s)=>q.user?s.render("upgrade",{user:q.user}):s.redirect("/auth/steam"));
 app.get("/auth/steam",passport.authenticate("steam",{failureRedirect:"/"}));app.get("/auth/steam/return",passport.authenticate("steam",{failureRedirect:"/?login=failed"}),(q,s)=>s.redirect("/"));
 app.post("/logout",(q,s,n)=>q.logout(e=>e?n(e):q.session.destroy(()=>s.redirect("/"))));
 app.get("/api/inventory",(q,s)=>q.user?s.json(read()[q.user.steam_id]?.inventory||[]):s.status(401).json({error:"Войдите через Steam"}));app.get("/api/catalog",(q,s)=>s.json(cases));
