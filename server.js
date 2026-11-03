@@ -89,16 +89,54 @@ function rebuildCases(){cases=buildCases()}
 setInterval(rebuildCases,60*1000).unref();
 function weightedPick(list){const total=list.reduce((n,x)=>n+x.weight,0);let r=crypto.randomInt(1,total+1);for(const x of list){r-=x.weight;if(r<=0)return x}return list[list.length-1]}
 const items=[...new Map(cases.flatMap(c=>c.items).map(x=>[x.marketName,x])).values()];
+
 function getAllItems() {
-  const catalogue = liveCatalogue();
   const caseItems = cases.flatMap(c => c.items || []);
 
-  return [...new Map(
-    [...catalogue, ...caseItems]
-      .filter(x => x && x.name && Number(x.price) > 0)
-      .map(x => [x.marketName || x.name, x])
-  ).values()];
+  const unique = new Map();
+
+  for (const item of caseItems) {
+    if (!item || !item.name || !Number.isFinite(Number(item.price))) continue;
+
+    const key = item.marketName || item.name;
+
+    if (!unique.has(key)) {
+      unique.set(key, item);
+    }
+  }
+
+  const items = [...unique.values()]
+    .sort((a, b) => Number(a.price) - Number(b.price));
+
+  // Обычные предметы для апгрейда
+  const regular = items.filter(x => Number(x.price) < 50000);
+
+  // Дорогие предметы: максимум 3 из каждого диапазона
+  const ranges = [
+    [50000, 100000],
+    [100000, 150000],
+    [150000, 200000],
+    [200000, 250000],
+    [250000, 300000],
+    [300000, 400000],
+    [400000, 500000],
+    [500000, Infinity]
+  ];
+
+  const expensive = [];
+
+  for (const [min, max] of ranges) {
+    const group = items.filter(x =>
+      Number(x.price) >= min && Number(x.price) < max
+    );
+
+    // Выбираем до трёх разных предметов из диапазона
+    expensive.push(...group.slice(0, 3));
+  }
+
+  return [...regular.slice(0, 100), ...expensive];
 }
+
 
 app.set("trust proxy",1);app.set("view engine","ejs");app.set("views",path.join(__dirname,"views"));app.use(express.static(path.join(__dirname,"public")));app.use(express.urlencoded({extended:false}));app.use(express.json());
 app.use(session({secret:process.env.SESSION_SECRET||"change-this-secret",resave:false,saveUninitialized:false,cookie:{httpOnly:true,sameSite:"lax",secure:process.env.NODE_ENV==="production",maxAge:604800000}}));app.use(passport.initialize());app.use(passport.session());
