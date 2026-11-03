@@ -102,6 +102,45 @@ app.get("/auth/steam",passport.authenticate("steam",{failureRedirect:"/"}));app.
 app.post("/logout",(q,s,n)=>q.logout(e=>e?n(e):q.session.destroy(()=>s.redirect("/"))));
 app.get("/api/inventory",(q,s)=>q.user?s.json(read()[q.user.steam_id]?.inventory||[]):s.status(401).json({error:"Войдите через Steam"}));
 app.get("/api/catalog",(q,s)=>s.json(cases));
+
+// Админ-команда для начисления токенов
+app.post("/api/admin/add-balance", (q, s) => {
+  try {
+    const secret = process.env.ADMIN_SECRET;
+
+    if (!secret) {
+      throw Error("Админ-пароль не настроен");
+    }
+
+    if (q.body.secret !== secret) {
+      return s.status(403).json({ error: "Неверный админ-пароль" });
+    }
+
+    const steamId = String(q.body.steamId || "");
+    const amount = Number(q.body.amount);
+
+    if (!/^\d{5,30}$/.test(steamId)) {
+      throw Error("Неверный Steam ID");
+    }
+
+    if (!Number.isSafeInteger(amount) || amount < 1 || amount > 100000000) {
+      throw Error("Некорректное количество токенов");
+    }
+
+    const u = change(steamId, user => {
+      user.balance = (Number(user.balance) || 0) + amount;
+    });
+
+    s.json({
+      success: true,
+      message: `Начислено ${amount} токенов`,
+      balance: u.balance
+    });
+  } catch (e) {
+    s.status(400).json({ error: e.message });
+  }
+});
+
 app.get("/api/market-status",(q,s)=>s.json({status:marketStatus,updatedAt:marketUpdatedAt,source:"Market.CSGO",currency:"TOKENS",tokenPeg:"1 token = 1 RUB (virtual demo economy)",live:marketPrices.size>0}));
 // Открытие одного или нескольких кейсов (до 10)
 app.post("/api/open/:id/:count", (q, s) => {
