@@ -103,7 +103,65 @@ app.post("/logout",(q,s,n)=>q.logout(e=>e?n(e):q.session.destroy(()=>s.redirect(
 app.get("/api/inventory",(q,s)=>q.user?s.json(read()[q.user.steam_id]?.inventory||[]):s.status(401).json({error:"Войдите через Steam"}));
 app.get("/api/catalog",(q,s)=>s.json(cases));
 app.get("/api/market-status",(q,s)=>s.json({status:marketStatus,updatedAt:marketUpdatedAt,source:"Market.CSGO",currency:"TOKENS",tokenPeg:"1 token = 1 RUB (virtual demo economy)",live:marketPrices.size>0}));
-app.post("/api/open/:id",(q,s)=>{try{if(!q.user)throw Error("Войдите через Steam");const c=cases.find(x=>x.id===q.params.id);if(!c)throw Error("Кейс не найден");const u=change(q.user.steam_id,u=>{if(u.balance<c.price)throw Error("Недостаточно токенов");u.balance-=c.price;const x=weightedPick(c.items);u.inventory.unshift({...x,id:crypto.randomUUID(),source:c.name})});s.json({balance:u.balance,item:u.inventory[0],caseData:{price:c.price,items:c.items}})}catch(e){s.status(400).json({error:e.message})}});
+// Открытие одного или нескольких кейсов (до 10)
+app.post("/api/open/:id/:count", (q, s) => {
+  try {
+    if (!q.user) throw Error("Войдите через Steam");
+
+    const c = cases.find(x => x.id === q.params.id);
+    if (!c) throw Error("Кейс не найден");
+
+    const count = Number(q.params.count);
+
+    if (!Number.isInteger(count) || count < 1 || count > 10) {
+      throw Error("Можно открыть от 1 до 10 кейсов");
+    }
+
+    if (!c.items || !c.items.length) {
+      throw Error("В этом кейсе пока нет предметов");
+    }
+
+    const totalPrice = c.price * count;
+    let opened = [];
+
+    const u = change(q.user.steam_id, u => {
+      if (u.balance < totalPrice) {
+        throw Error("Недостаточно токенов");
+      }
+
+      // Списываем общую стоимость
+      u.balance -= totalPrice;
+
+      // Выдаём все предметы
+      for (let i = 0; i < count; i++) {
+        const item = weightedPick(c.items);
+
+        opened.push({
+          ...item,
+          id: crypto.randomUUID(),
+          source: c.name
+        });
+      }
+
+      u.inventory.unshift(...opened);
+    });
+
+    s.json({
+      balance: u.balance,
+      count,
+      totalPrice,
+      items: opened,
+      item: opened[0],
+      caseData: {
+        price: c.price,
+        items: c.items
+      }
+    });
+
+  } catch (e) {
+    s.status(400).json({ error: e.message });
+  }
+});
 app.post("/api/sell/:id",(q,s)=>{try{if(!q.user)throw Error("Войдите через Steam");let sold;const u=change(q.user.steam_id,u=>{const i=u.inventory.findIndex(x=>x.id===q.params.id);if(i<0)throw Error("Предмет не найден");sold=u.inventory.splice(i,1)[0];u.balance+=sold.price});s.json({balance:u.balance,sold})}catch(e){s.status(400).json({error:e.message})}});
 app.post("/api/upgrade",(q,s)=>{try{if(!q.user)throw Error("Войдите через Steam");const target=getAllItems().find(x=>x.marketName===q.body.targetName||x.name===q.body.targetName);if(!target)throw Error("Целевой предмет не найден");let won=false,chance=0,result=null;const u=change(q.user.steam_id,u=>{const i=u.inventory.findIndex(x=>x.id===q.body.itemId);if(i<0)throw Error("Предмет не найден");const src=u.inventory[i];if(target.price<=src.price)throw Error("Целевой предмет должен быть дороже");chance=Math.min(.90,(src.price/target.price)*.90);won=crypto.randomInt(1000000)<Math.floor(chance*1000000);u.inventory.splice(i,1);if(won){result={...target,id:crypto.randomUUID(),source:"Апгрейд"};u.inventory.unshift(result)}});s.json({won,chance,balance:u.balance,item:result,target,sourceName:q.body.itemId})}catch(e){s.status(400).json({error:e.message})}});
 app.listen(PORT,()=>console.log("Costik Battle: "+BASE));
