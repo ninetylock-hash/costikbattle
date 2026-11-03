@@ -1,5 +1,11 @@
 const $=s=>document.querySelector(s);
-async function api(url,opts={}){const r=await fetch(url,{headers:{"Content-Type":"application/json"},...opts});const d=await r.json();if(!r.ok)throw Error(d.error||"Ошибка");return d}
+async function api(url,opts={}){
+ const r=await fetch(url,{credentials:"same-origin",headers:{"Content-Type":"application/json",...(opts.headers||{})},...opts});
+ const raw=await r.text();let d;
+ try{d=raw?JSON.parse(raw):{}}catch{throw Error(`Сервер вернул не JSON (HTTP ${r.status}). Проверьте адрес API и деплой.`)}
+ if(!r.ok)throw Error(d.error||`Ошибка сервера: HTTP ${r.status}`);
+ return d;
+}
 let skinsPromise,cratesPromise;
 const SKINS_URL="https://raw.githubusercontent.com/ByMykel/CSGO-API/main/public/api/en/skins.json";
 const CRATES_URL="https://raw.githubusercontent.com/ByMykel/CSGO-API/main/public/api/en/crates.json";
@@ -21,19 +27,18 @@ function makeSkinCard(item){const el=document.createElement("div");el.className=
 function showPreview(id,item,empty){const root=$(id);root.innerHTML="";if(!item){root.textContent=empty;return}root.replaceWith(makeSkinCard(item));}
 function card(x){const d=document.createElement("div");d.className="reel-item";const im=document.createElement("img");im.dataset.skin=x.name;d.append(im);const b=document.createElement("b");b.textContent=x.name;d.append(b);const p=document.createElement("small");p.textContent=x.price+" токенов";d.append(p);return d}
 async function spin(reel,items,winner){reel.innerHTML="";const arr=Array.from({length:38},()=>items[Math.floor(Math.random()*items.length)]);arr.push(winner);for(let i=0;i<6;i++)arr.push(items[Math.floor(Math.random()*items.length)]);arr.forEach(x=>reel.append(card(x)));await hydrate(reel);reel.style.transition="none";reel.style.transform="translateX(0)";void reel.offsetWidth;const x=38*166-reel.parentElement.clientWidth/2+83;reel.style.transition="transform 5.2s cubic-bezier(.08,.72,.12,1)";requestAnimationFrame(()=>reel.style.transform=`translateX(-${x}px)`);return new Promise(r=>setTimeout(r,5350))}
-document.addEventListener("click",async event=>{
- const b=event.target.closest(".open");
+async function openCaseButton(b){
  if(!b||b.disabled)return;
- event.preventDefault();
  b.disabled=true;
  const originalText=b.textContent;
  b.textContent="ОТКРЫВАЕМ…";
  try{
-  // One request is enough: the opening endpoint returns both the winning item and the reel catalogue.
-  const d=await api("/api/open/"+encodeURIComponent(b.dataset.id),{method:"POST"});
-  if(!d.caseData?.items?.length||!d.item)throw Error("Сервер не вернул результат открытия. Обновите страницу и попробуйте снова.");
+  const caseId=b.dataset.id;
+  if(!caseId)throw Error("У кнопки не указан ID кейса. Перезагрузите страницу.");
+  const d=await api("/api/open/"+encodeURIComponent(caseId),{method:"POST"});
+  if(!d.caseData?.items?.length||!d.item)throw Error("Сервер не вернул предмет. Обновите страницу и попробуйте снова.");
   const modal=$("#modal"),reel=$("#reel");
-  if(!modal||!reel)throw Error("Не найдено окно открытия кейса. Обновите страницу.");
+  if(!modal||!reel)throw Error("Не найдено окно открытия. Перезагрузите страницу.");
   $("#roll-title").textContent="ОТКРЫТИЕ КЕЙСА";
   $("#item-name").textContent="";
   $("#item-price").textContent="";
@@ -42,13 +47,29 @@ document.addEventListener("click",async event=>{
   $("#roll-title").textContent="ВЫПАЛ ПРЕДМЕТ";
   $("#item-name").textContent=d.item.name;
   $("#item-price").textContent=d.item.price+" токенов";
+  const balance=document.querySelector(".header-user");
+  if(balance&&typeof d.balance==="number"){
+   const tokenText=[...balance.childNodes].find(n=>n.nodeType===Node.TEXT_NODE&&n.textContent.includes("токен"));
+   if(tokenText)tokenText.textContent=tokenText.textContent.replace(/[0-9][0-9\s]*/,d.balance);
+  }
  }catch(e){
   alert(e.message||"Не удалось открыть кейс");
  }finally{
   b.disabled=false;
   b.textContent=originalText;
  }
-});
+}
+// Delegated capture listener: works even if the case content is re-rendered.
+document.addEventListener("click",event=>{
+ const b=event.target instanceof Element?event.target.closest("button.open[data-id]"):null;
+ if(!b)return;
+ event.preventDefault();
+ event.stopPropagation();
+ openCaseButton(b);
+},true);
+window.CostikBattle=window.CostikBattle||{};
+window.CostikBattle.openCase=openCaseButton;
+
 if($("#close"))$("#close").onclick=()=>$("#modal").classList.add("hide");
 if($("#inventory"))(async()=>{try{const a=await api("/api/inventory"),root=$("#inventory");root.innerHTML="";if(!a.length){root.textContent="Инвентарь пуст";return}a.forEach(x=>{const el=document.createElement("article");el.className="drop-card";const fr=document.createElement("div");fr.className="skin-frame";const im=document.createElement("img");im.dataset.skin=x.name;fr.append(im);el.append(fr);const h=document.createElement("h3");h.textContent=x.name;el.append(h);const p=document.createElement("p");p.textContent=x.price+" токенов";el.append(p);const b=document.createElement("button");b.className="btn";b.textContent="ПРОДАТЬ";b.onclick=async()=>{try{await api("/api/sell/"+x.id,{method:"POST"});location.reload()}catch(e){alert(e.message)}};el.append(b);root.append(el)});await hydrate(root)}catch(e){$("#inventory").textContent=e.message}})();
 if($("#source"))(async()=>{
