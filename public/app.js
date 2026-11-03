@@ -520,96 +520,91 @@ if ($("#source")) {
 
       byId("extra-balance").addEventListener("input", update);
 
-      byId("do-upgrade").onclick = async () => {
-        if (busy) return;
+    
+byId("do-upgrade").onclick = async () => {
+  if (busy) return;
 
-        const source = sourceItem();
-        const target = targetItem();
-        const extra = extraValue();
+  const source = sourceItem();
+  const target = targetItem();
+  const extra = extraValue();
 
-        if (!source || !target || target.price <= source.price) return;
+  if (!source || !target || target.price <= source.price) return;
 
-        busy = true;
-        update();
+  busy = true;
+  update();
 
-        byId("result").textContent = "Запускаем апгрейд…";
+  const wheel = byId("upgrade-wheel");
+  wheel.classList.remove("wheel-win", "wheel-lose");
+  byId("result").textContent = "Запускаем апгрейд…";
 
-        const wheel = byId("upgrade-wheel");
-        wheel.classList.remove("wheel-win", "wheel-lose");
+  try {
+    const d = await api("/api/upgrade", {
+      method: "POST",
+      body: JSON.stringify({
+        itemId: selectedSource,
+        targetName: selectedTarget,
+        extraBalance: extra
+      })
+    });
 
-      const d = await api("/api/upgrade", {
-  method: "POST",
-  body: JSON.stringify({
-    itemId: selectedSource,
-    targetName: selectedTarget,
-    extraBalance: extra
-  })
-});
-
-if (
-  typeof d.won !== "boolean" ||
-  typeof d.balance !== "number" ||
-  typeof d.extraBalance !== "number"
-) {
-  throw Error("Сервер вернул неполный результат апгрейда. Инвентарь не обновлён.");
-}
-
-if (d.extraBalance !== extra) {
-  throw Error(
-    `Ошибка доплаты: отправлено ${extra}, сервер принял ${d.extraBalance}.`
-  );
-}
-
-          // Анимация показывает результат, уже определённый сервером.
-          const chance = d.chance;
-          const successAngle = 360 - chance * 180;
-          const failAngle = 360 - (chance * 360 + (360 - chance * 360) / 2);
-          const finalAngle =
-            (d.won ? successAngle : failAngle) + 360 * 7;
-
-          wheel.style.transition = "none";
-          wheel.style.transform = "rotate(0deg)";
-          void wheel.offsetWidth;
-
-          wheel.style.transition = "transform 5s cubic-bezier(.12,.72,.12,1)";
-          wheel.style.transform = `rotate(${finalAngle}deg)`;
-
-          await new Promise(r => setTimeout(r, 5200));
-
-          wheel.classList.add(d.won ? "wheel-win" : "wheel-lose");
-
-          byId("result").textContent = d.won
-            ? `УСПЕХ! Получен ${d.item.name} · ${money(d.item.price)} токенов`
-            : `НЕУДАЧА! Скин и ${money(d.extraBalance)} токенов сгорели`;
-
-          inv = inv.filter(x => String(x.id) !== String(selectedSource));
-
-          if (d.won) {
-            inv.unshift(d.item);
-            selectedSource = String(d.item.id);
-          } else {
-            selectedSource = inv.length ? String(inv[0].id) : "";
-          }
-
-          selectedTarget = "";
-          byId("extra-balance").value = "0";
-
-          if ($("#user-balance")) {
-            $("#user-balance").textContent = money(d.balance);
-          }
-
-          busy = false;
-          update();
-
-        } catch (e) {
-          byId("result").textContent = e.message;
-          busy = false;
-          update();
-        }
-      };
-
-    } catch (e) {
-      byId("result").textContent = e.message;
+    if (
+      typeof d.won !== "boolean" ||
+      typeof d.balance !== "number" ||
+      typeof d.extraBalance !== "number"
+    ) {
+      throw Error("Сервер вернул неполный результат. Обнови страницу и проверь инвентарь.");
     }
-  })();
-}
+
+    if (d.extraBalance !== extra) {
+      throw Error(`Сервер принял ${d.extraBalance} вместо ${extra}. Проверь баланс и инвентарь.`);
+    }
+
+    // Сразу фиксируем подтверждённое сервером состояние.
+    inv = inv.filter(x => String(x.id) !== String(selectedSource));
+
+    if (d.won && d.item) {
+      inv.unshift(d.item);
+      selectedSource = String(d.item.id);
+    } else {
+      selectedSource = inv.length ? String(inv[0].id) : "";
+    }
+
+    selectedTarget = "";
+
+    if ($("#user-balance")) {
+      $("#user-balance").textContent = money(d.balance);
+    }
+
+    byId("extra-balance").value = "0";
+
+    update();
+
+    // Анимация только отображает уже полученный результат.
+    const chance = d.chance;
+    const angle = (d.won
+      ? 360 - chance * 180
+      : 360 - (chance * 360 + (360 - chance * 360) / 2)
+    ) + 360 * 7;
+
+    wheel.style.transition = "none";
+    wheel.style.transform = "rotate(0deg)";
+    void wheel.offsetWidth;
+
+    wheel.style.transition = "transform 5s cubic-bezier(.12,.72,.12,1)";
+    wheel.style.transform = `rotate(${angle}deg)`;
+
+    await new Promise(resolve => setTimeout(resolve, 5200));
+
+    wheel.classList.add(d.won ? "wheel-win" : "wheel-lose");
+
+    byId("result").textContent = d.won
+      ? `УСПЕХ! Получен ${d.item.name} · ${money(d.item.price)} токенов`
+      : `НЕУДАЧА! Скин и ${money(d.extraBalance)} токенов сгорели`;
+
+  } catch (e) {
+    byId("result").textContent = e.message;
+  } finally {
+    busy = false;
+    update();
+  }
+};
