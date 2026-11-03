@@ -93,10 +93,22 @@ const items=[...new Map(cases.flatMap(c=>c.items).map(x=>[x.marketName,x])).valu
 function getAllItems() {
   const caseItems = cases.flatMap(c => c.items || []);
 
+  let liveItems = [];
+  try {
+    liveItems = liveCatalogue() || [];
+  } catch (e) {
+    console.error("Ошибка загрузки дорогого каталога:", e.message);
+  }
+
   const unique = new Map();
 
-  for (const item of caseItems) {
-    if (!item || !item.name || !Number.isFinite(Number(item.price))) continue;
+  for (const item of [...caseItems, ...liveItems]) {
+    if (
+      !item ||
+      !item.name ||
+      !Number.isFinite(Number(item.price)) ||
+      Number(item.price) <= 0
+    ) continue;
 
     const key = item.marketName || item.name;
 
@@ -105,13 +117,12 @@ function getAllItems() {
     }
   }
 
-  const items = [...unique.values()]
-    .sort((a, b) => Number(a.price) - Number(b.price));
+  const items = [...unique.values()];
+  const regular = items
+    .filter(x => Number(x.price) < 50000)
+    .sort((a, b) => Number(b.price) - Number(a.price))
+    .slice(0, 100);
 
-  // Обычные предметы для апгрейда
-  const regular = items.filter(x => Number(x.price) < 50000);
-
-  // Дорогие предметы: максимум 3 из каждого диапазона
   const ranges = [
     [50000, 100000],
     [100000, 150000],
@@ -126,17 +137,15 @@ function getAllItems() {
   const expensive = [];
 
   for (const [min, max] of ranges) {
-    const group = items.filter(x =>
-      Number(x.price) >= min && Number(x.price) < max
-    );
+    const group = items
+      .filter(x => Number(x.price) >= min && Number(x.price) < max)
+      .sort((a, b) => Number(b.price) - Number(a.price));
 
-    // Выбираем до трёх разных предметов из диапазона
     expensive.push(...group.slice(0, 3));
   }
 
-  return [...regular.slice(0, 100), ...expensive];
+  return [...regular, ...expensive];
 }
-
 
 app.set("trust proxy",1);app.set("view engine","ejs");app.set("views",path.join(__dirname,"views"));app.use(express.static(path.join(__dirname,"public")));app.use(express.urlencoded({extended:false}));app.use(express.json());
 app.use(session({secret:process.env.SESSION_SECRET||"change-this-secret",resave:false,saveUninitialized:false,cookie:{httpOnly:true,sameSite:"lax",secure:process.env.NODE_ENV==="production",maxAge:604800000}}));app.use(passport.initialize());app.use(passport.session());
