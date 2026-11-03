@@ -30,28 +30,57 @@ async function spin(reel,items,winner){reel.innerHTML="";const arr=Array.from({l
 async function openCaseButton(b){
  if(!b||b.disabled)return;
  b.disabled=true;
+
  const originalText=b.textContent;
  b.textContent="ОТКРЫВАЕМ…";
+
  try{
   const caseId=b.dataset.id;
-  if(!caseId)throw Error("У кнопки не указан ID кейса. Перезагрузите страницу.");
-  const d=await api("/api/open/"+encodeURIComponent(caseId),{method:"POST"});
-  if(!d.caseData?.items?.length||!d.item)throw Error("Сервер не вернул предмет. Обновите страницу и попробуйте снова.");
-  const modal=$("#modal"),reel=$("#reel");
-  if(!modal||!reel)throw Error("Не найдено окно открытия. Перезагрузите страницу.");
-  $("#roll-title").textContent="ОТКРЫТИЕ КЕЙСА";
-  $("#item-name").textContent="";
-  $("#item-price").textContent="";
+  if(!caseId)throw Error("У кнопки не указан ID кейса.");
+
+  const count=Math.min(10,Math.max(1,Number($("#case-count")?.value)||1));
+
+  const d=await api(
+   "/api/open/"+encodeURIComponent(caseId)+"/"+count,
+   {method:"POST"}
+  );
+
+  if(!Array.isArray(d.items)||d.items.length!==count)
+   throw Error("Сервер вернул некорректный список предметов.");
+
+  const modal=$("#modal");
+  const reel=$("#reel");
+
+  if(!modal||!reel)throw Error("Не найдено окно открытия.");
+
   modal.classList.remove("hide");
-  await spin(reel,d.caseData.items,d.item);
-  $("#roll-title").textContent="ВЫПАЛ ПРЕДМЕТ";
-  $("#item-name").textContent=d.item.name;
-  $("#item-price").textContent=d.item.price+" токенов";
+
+  for(let i=0;i<d.items.length;i++){
+   const item=d.items[i];
+
+   $("#roll-title").textContent=`ОТКРЫТИЕ ${i+1} ИЗ ${count}`;
+   $("#item-name").textContent="";
+   $("#item-price").textContent="";
+
+   await spin(reel,d.caseData.items,item);
+
+   $("#roll-title").textContent=`ВЫПАЛ ПРЕДМЕТ ${i+1} ИЗ ${count}`;
+   $("#item-name").textContent=item.name;
+   $("#item-price").textContent=item.price+" токенов";
+
+   if(i<d.items.length-1)
+    await new Promise(r=>setTimeout(r,900));
+  }
+
   const balance=document.querySelector(".header-user");
   if(balance&&typeof d.balance==="number"){
-   const tokenText=[...balance.childNodes].find(n=>n.nodeType===Node.TEXT_NODE&&n.textContent.includes("токен"));
-   if(tokenText)tokenText.textContent=tokenText.textContent.replace(/[0-9][0-9\s]*/,d.balance);
+   const tokenText=[...balance.childNodes].find(
+    n=>n.nodeType===Node.TEXT_NODE&&n.textContent.includes("токен")
+   );
+   if(tokenText)
+    tokenText.textContent=tokenText.textContent.replace(/[0-9][0-9\s]*/,d.balance);
   }
+
  }catch(e){
   alert(e.message||"Не удалось открыть кейс");
  }finally{
