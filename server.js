@@ -382,14 +382,15 @@ app.post("/api/upgrade", (q, s) => {
       }
     });
 
-    s.json({
-      won,
-      chance,
-      balance: u.balance,
-      item: result,
-      target,
-      extraBalance: extra
-    });
+   s.json({
+  success: true,
+  won,
+  chance,
+  balance: Number(u.balance),
+  item: result || null,
+  target,
+  extraBalance: Number(extra)
+});
 
   } catch (e) {
     s.status(400).json({ error: e.message });
