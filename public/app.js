@@ -1,13 +1,56 @@
 const $=s=>document.querySelector(s);
-async function api(url,opts={}){let r=await fetch(url,{headers:{"Content-Type":"application/json"},...opts}),d=await r.json();if(!r.ok)throw Error(d.error||"Ошибка");return d}
-let dbPromise;
-async function skinUrl(name){if(!dbPromise)dbPromise=fetch("https://bymykel.github.io/CSGO-API/api/en/skins.json").then(r=>r.json()).catch(()=>[]);let db=await dbPromise;let clean=name.replace(/^★\s*/,"");let x=db.find(v=>v.name===name)||db.find(v=>v.name===clean)||db.find(v=>v.name.toLowerCase()===clean.toLowerCase());return x?.image||""}
-function placeholder(name){let d=document.createElement("div");d.className="image-fallback";d.textContent=name;return d}
-async function hydrate(root=document){for(let im of [...root.querySelectorAll("img[data-skin]")]){let u=await skinUrl(im.dataset.skin);if(u){im.src=u;im.onerror=()=>im.replaceWith(placeholder(im.dataset.skin))}else im.replaceWith(placeholder(im.dataset.skin))}}
+async function api(url,opts={}){const r=await fetch(url,{headers:{"Content-Type":"application/json"},...opts});const d=await r.json();if(!r.ok)throw Error(d.error||"Ошибка");return d}
+let skinsPromise,cratesPromise;
+const SKINS_URL="https://raw.githubusercontent.com/ByMykel/CSGO-API/main/public/api/en/skins.json";
+const CRATES_URL="https://raw.githubusercontent.com/ByMykel/CSGO-API/main/public/api/en/crates.json";
+function norm(s){return String(s||"").replace(/^★\s*/,"").toLowerCase().replace(/\s+/g," ").trim()}
+async function loadSkins(){if(!skinsPromise)skinsPromise=fetch(SKINS_URL).then(r=>r.json()).catch(()=>[]);return skinsPromise}
+async function loadCrates(){if(!cratesPromise)cratesPromise=fetch(CRATES_URL).then(r=>r.json()).catch(()=>[]);return cratesPromise}
+async function findSkin(name){const db=await loadSkins(),n=norm(name);return db.find(x=>norm(x.name)===n||norm(x.market_hash_name)===n)||db.find(x=>norm(x.name).includes(n)||n.includes(norm(x.name)))}
+function fallback(parent,name){const el=document.createElement("div");el.className="image-fallback";el.textContent=name;parent.replaceWith(el)}
+async function setSkinImage(img,name){const x=await findSkin(name);if(x?.image){img.src=x.image;img.onerror=()=>fallback(img,name)}else fallback(img,name)}
+async function hydrate(root=document){
+ const caseImgs=[...root.querySelectorAll("img[data-case]")];
+ if(caseImgs.length){const crates=(await loadCrates()).filter(x=>x.type==="Case");for(const im of caseImgs){const c=crates[Number(im.dataset.case)%Math.max(crates.length,1)];if(c?.image){im.src=c.image;im.onerror=()=>fallback(im,im.alt||"CS2 Case")}else fallback(im,im.alt||"CS2 Case")}}
+ for(const im of [...root.querySelectorAll("img[data-skin]")])await setSkinImage(im,im.dataset.skin);
+}
 hydrate();
-function card(x){let d=document.createElement("div");d.className="reel-item";let im=document.createElement("img");im.dataset.skin=x.name;d.append(im);let b=document.createElement("b");b.textContent=x.name;d.append(b);let p=document.createElement("small");p.textContent=x.price+" монет";d.append(p);return d}
-async function spin(reel,items,winner){reel.innerHTML="";let arr=Array.from({length:38},()=>items[Math.floor(Math.random()*items.length)]);arr.push(winner);for(let i=0;i<6;i++)arr.push(items[Math.floor(Math.random()*items.length)]);arr.forEach(x=>reel.append(card(x)));await hydrate(reel);reel.style.transition="none";reel.style.transform="translateX(0)";void reel.offsetWidth;let x=38*166-reel.parentElement.clientWidth/2+83;reel.style.transition="transform 5.2s cubic-bezier(.08,.72,.12,1)";requestAnimationFrame(()=>reel.style.transform=`translateX(-${x}px)`);return new Promise(r=>setTimeout(r,5350))}
-document.querySelectorAll(".open").forEach(b=>b.onclick=async()=>{b.disabled=true;try{let c=await api("/api/catalog"),caseData=c.find(x=>x.id===b.dataset.id),d=await api("/api/open/"+b.dataset.id,{method:"POST"});$("#modal").classList.remove("hide");await spin($("#reel"),caseData.items,d.item);$("#roll-title").textContent="ВЫПАЛ ПРЕДМЕТ";$("#item-name").textContent=d.item.name;$("#item-price").textContent=d.item.price+" виртуальных монет"}catch(e){alert(e.message)}finally{b.disabled=false}});
+function makeSkinCard(item){const el=document.createElement("div");el.className="upgrade-item";const im=document.createElement("img");im.alt=item.name;el.append(im);const name=document.createElement("b");name.textContent=item.name;const price=document.createElement("small");price.textContent=`${item.price} монет`;el.append(name,price);setSkinImage(im,item.name);return el}
+function showPreview(id,item,empty){const root=$(id);root.innerHTML="";if(!item){root.textContent=empty;return}root.replaceWith(makeSkinCard(item));}
+function card(x){const d=document.createElement("div");d.className="reel-item";const im=document.createElement("img");im.dataset.skin=x.name;d.append(im);const b=document.createElement("b");b.textContent=x.name;d.append(b);const p=document.createElement("small");p.textContent=x.price+" монет";d.append(p);return d}
+async function spin(reel,items,winner){reel.innerHTML="";const arr=Array.from({length:38},()=>items[Math.floor(Math.random()*items.length)]);arr.push(winner);for(let i=0;i<6;i++)arr.push(items[Math.floor(Math.random()*items.length)]);arr.forEach(x=>reel.append(card(x)));await hydrate(reel);reel.style.transition="none";reel.style.transform="translateX(0)";void reel.offsetWidth;const x=38*166-reel.parentElement.clientWidth/2+83;reel.style.transition="transform 5.2s cubic-bezier(.08,.72,.12,1)";requestAnimationFrame(()=>reel.style.transform=`translateX(-${x}px)`);return new Promise(r=>setTimeout(r,5350))}
+document.querySelectorAll(".open").forEach(b=>b.onclick=async()=>{b.disabled=true;try{const c=await api("/api/catalog"),caseData=c.find(x=>x.id===b.dataset.id),d=await api("/api/open/"+b.dataset.id,{method:"POST"});$("#modal").classList.remove("hide");await spin($("#reel"),caseData.items,d.item);$("#roll-title").textContent="ВЫПАЛ ПРЕДМЕТ";$("#item-name").textContent=d.item.name;$("#item-price").textContent=d.item.price+" виртуальных монет"}catch(e){alert(e.message)}finally{b.disabled=false}});
 if($("#close"))$("#close").onclick=()=>$("#modal").classList.add("hide");
-if($("#inventory"))(async()=>{try{let a=await api("/api/inventory"),root=$("#inventory");root.innerHTML="";if(!a.length){root.textContent="Инвентарь пуст";return}a.forEach(x=>{let el=document.createElement("article");el.className="drop-card";let fr=document.createElement("div");fr.className="skin-frame";let im=document.createElement("img");im.dataset.skin=x.name;fr.append(im);el.append(fr);let h=document.createElement("h3");h.textContent=x.name;el.append(h);let p=document.createElement("p");p.textContent=x.price+" виртуальных монет";el.append(p);let b=document.createElement("button");b.className="btn";b.textContent="ПРОДАТЬ";b.onclick=async()=>{try{await api("/api/sell/"+x.id,{method:"POST"});location.reload()}catch(e){alert(e.message)}};el.append(b);root.append(el)});await hydrate(root)}catch(e){$("#inventory").textContent=e.message}})();
-if($("#source"))(async()=>{try{let inv=await api("/api/inventory"),cat=await api("/api/catalog"),all=[...new Map(cat.flatMap(c=>c.items).map(x=>[x.name,x])).values()];$("#source").innerHTML=inv.map(x=>`<option value="${x.id}">${x.name} — ${x.price}</option>`).join("");$("#target").innerHTML=all.map(x=>`<option value="${x.name}">${x.name} — ${x.price}</option>`).join("");function update(){let a=inv.find(x=>x.id===$("#source").value),t=all.find(x=>x.name===$("#target").value),v=a&&t&&t.price>a.price?100*a.price/t.price:0;$("#chance").textContent=v.toFixed(2)+"%";$("#bar").style.width=v+"%"}$("#source").onchange=update;$("#target").onchange=update;update();$("#do-upgrade").onclick=async()=>{try{let d=await api("/api/upgrade",{method:"POST",body:JSON.stringify({itemId:$("#source").value,targetName:$("#target").value})});$("#result").textContent="Крутим рулетку…";let pool=all.filter(x=>x.price>0),wonItem=d.won?d.item:pool.find(x=>x.name===$("#target").value);let modal=document.createElement("div");modal.className="modal";modal.innerHTML='<div class="dialog wide"><h2>АПГРЕЙД</h2><div class="reel-wrap"><div class="reel-pointer"></div><div id="up-reel" class="reel"></div></div><h2 id="up-result"></h2><button class="btn" id="up-close">Закрыть</button></div>';document.body.append(modal);await spin($("#up-reel"),pool,wonItem);$("#up-result").textContent=d.won?"АПГРЕЙД УДАЛСЯ!":"НЕУДАЧА — ПРЕДМЕТ СГОРЕЛ";$("#up-close").onclick=()=>location.reload()}catch(e){alert(e.message)}}}catch(e){$("#result").textContent=e.message}})();
+if($("#inventory"))(async()=>{try{const a=await api("/api/inventory"),root=$("#inventory");root.innerHTML="";if(!a.length){root.textContent="Инвентарь пуст";return}a.forEach(x=>{const el=document.createElement("article");el.className="drop-card";const fr=document.createElement("div");fr.className="skin-frame";const im=document.createElement("img");im.dataset.skin=x.name;fr.append(im);el.append(fr);const h=document.createElement("h3");h.textContent=x.name;el.append(h);const p=document.createElement("p");p.textContent=x.price+" виртуальных монет";el.append(p);const b=document.createElement("button");b.className="btn";b.textContent="ПРОДАТЬ";b.onclick=async()=>{try{await api("/api/sell/"+x.id,{method:"POST"});location.reload()}catch(e){alert(e.message)}};el.append(b);root.append(el)});await hydrate(root)}catch(e){$("#inventory").textContent=e.message}})();
+if($("#source"))(async()=>{
+ let inv=[],all=[],busy=false;
+ try{
+  inv=await api("/api/inventory");const cat=await api("/api/catalog");all=[...new Map(cat.flatMap(c=>c.items).map(x=>[x.name,x])).values()];
+  $("#source").innerHTML=inv.map(x=>`<option value="${x.id}">${x.name} — ${x.price} монет</option>`).join("");
+  $("#target").innerHTML=all.map(x=>`<option value="${x.name}">${x.name} — ${x.price} монет</option>`).join("");
+  const source=()=>inv.find(x=>x.id===$("#source").value),target=()=>all.find(x=>x.name===$("#target").value);
+  function update(){
+   const a=source(),t=target(),chance=a&&t&&t.price>a.price?Math.min(.9,a.price/t.price*.9):0;
+   $("#chance").textContent=(chance*100).toFixed(2)+"%";
+   $("#upgrade-wheel").style.background=`conic-gradient(#36d477 0deg ${chance*360}deg,#ed414b ${chance*360}deg 360deg)`;
+   $("#do-upgrade").disabled=!a||!t||t.price<=a.price||busy;
+   $("#source-preview").innerHTML="";$("#source-preview").append(a?makeSkinCard(a):document.createTextNode("Инвентарь пуст"));
+   $("#target-preview").innerHTML="";$("#target-preview").append(t?makeSkinCard(t):document.createTextNode("Нет цели"));
+  }
+  $("#source").onchange=update;$("#target").onchange=update;update();
+  $("#do-upgrade").onclick=async()=>{
+   if(busy)return;busy=true;update();$("#result").textContent="Колесо вращается…";$("#upgrade-wheel").classList.remove("wheel-win","wheel-lose");
+   try{
+    const d=await api("/api/upgrade",{method:"POST",body:JSON.stringify({itemId:$("#source").value,targetName:$("#target").value})});
+    const chance=d.chance,successAngle=360-(chance*360)/2,failAngle=360-(chance*360+(360-chance*360)/2),finalAngle=(d.won?successAngle:failAngle)+360*7;
+    const wheel=$("#upgrade-wheel");wheel.style.transition="none";wheel.style.transform="rotate(0deg)";void wheel.offsetWidth;wheel.style.transition="transform 5s cubic-bezier(.12,.72,.12,1)";wheel.style.transform=`rotate(${finalAngle}deg)`;
+    await new Promise(r=>setTimeout(r,5200));wheel.classList.add(d.won?"wheel-win":"wheel-lose");
+    $("#result").textContent=d.won?`УСПЕХ! Получен ${d.item.name} · ${d.item.price} монет`:"НЕУДАЧА — предмет сгорел";
+    if(d.won){inv=inv.filter(x=>x.id!==$("#source").value);inv.unshift(d.item)}else inv=inv.filter(x=>x.id!==$("#source").value);
+    $("#source").innerHTML=inv.map(x=>`<option value="${x.id}">${x.name} — ${x.price} монет</option>`).join("");
+    if(d.won)$("#target").value=d.item.name;
+    busy=false;update();
+   }catch(e){$("#result").textContent=e.message;busy=false;update()}
+  };
+ }catch(e){$("#result").textContent=e.message}
+})();
