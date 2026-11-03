@@ -72,35 +72,175 @@ window.CostikBattle.openCase=openCaseButton;
 
 if($("#close"))$("#close").onclick=()=>$("#modal").classList.add("hide");
 if($("#inventory"))(async()=>{try{const a=await api("/api/inventory"),root=$("#inventory");root.innerHTML="";if(!a.length){root.textContent="Инвентарь пуст";return}a.forEach(x=>{const el=document.createElement("article");el.className="drop-card";const fr=document.createElement("div");fr.className="skin-frame";const im=document.createElement("img");im.dataset.skin=x.name;fr.append(im);el.append(fr);const h=document.createElement("h3");h.textContent=x.name;el.append(h);const p=document.createElement("p");p.textContent=x.price+" токенов";el.append(p);const b=document.createElement("button");b.className="btn";b.textContent="ПРОДАТЬ";b.onclick=async()=>{try{await api("/api/sell/"+x.id,{method:"POST"});location.reload()}catch(e){alert(e.message)}};el.append(b);root.append(el)});await hydrate(root)}catch(e){$("#inventory").textContent=e.message}})();
+
 if($("#source"))(async()=>{
  let inv=[],all=[],busy=false;
+ let selectedSource="",selectedTarget="";
+ const pageSize=24;
+ const $id=id=>document.getElementById(id);
+
+ function priceSort(items,mode){
+  return [...items].sort((a,b)=>{
+   if(mode==="price-asc")return a.price-b.price;
+   if(mode==="name")return a.name.localeCompare(b.name);
+   return b.price-a.price;
+  });
+ }
+
+ function preview(root,item,empty){
+  root.innerHTML="";
+  if(!item){root.textContent=empty;return}
+  root.append(makeSkinCard(item));
+ }
+
+ function renderSource(){
+  const q=$id("source-search").value.toLowerCase().trim();
+  const items=priceSort(inv.filter(x=>x.name.toLowerCase().includes(q)),$id("source-sort").value);
+  $id("source-count").textContent=`${items.length} предметов`;
+  const root=$id("source-grid");
+  root.innerHTML="";
+  if(!items.length){root.innerHTML='<p class="upgrade-loading">В инвентаре ничего не найдено</p>';return}
+  items.forEach(x=>{
+   const b=document.createElement("button");
+   b.type="button";
+   b.className="upgrade-skin-card"+(String(x.id)===String(selectedSource)?" selected":"");
+   b.dataset.id=x.id;
+   const im=document.createElement("img");
+   im.dataset.skin=x.name;im.alt=x.name;
+   const name=document.createElement("b");name.textContent=x.name;
+   const price=document.createElement("small");price.textContent=x.price+" токенов";
+   b.append(im,name,price);
+   root.append(b);
+  });
+  hydrate(root);
+ }
+
+ function renderTarget(){
+  const q=$id("target-search").value.toLowerCase().trim();
+  const min=Number($id("target-min").value)||0;
+  const max=Number($id("target-max").value)||Infinity;
+  const a=inv.find(x=>String(x.id)===String(selectedSource));
+  let items=all.filter(x=>
+   x.name.toLowerCase().includes(q)&&
+   x.price>=min&&x.price<=max&&
+   (!a||x.price>a.price)
+  );
+  items=priceSort(items,$id("target-sort").value);
+  $id("target-count").textContent=`${items.length} предметов`;
+  const root=$id("target-grid");
+  root.innerHTML="";
+  if(!items.length){root.innerHTML='<p class="upgrade-loading">Нет подходящих предметов</p>';return}
+  items.forEach(x=>{
+   const b=document.createElement("button");
+   b.type="button";
+   b.className="upgrade-skin-card"+(x.name===selectedTarget?" selected":"");
+   b.dataset.name=x.name;
+   const im=document.createElement("img");
+   im.dataset.skin=x.name;im.alt=x.name;
+   const name=document.createElement("b");name.textContent=x.name;
+   const price=document.createElement("small");price.textContent=x.price+" токенов";
+   b.append(im,name,price);
+   root.append(b);
+  });
+  hydrate(root);
+ }
+
+ function update(){
+  const a=inv.find(x=>String(x.id)===String(selectedSource));
+  const t=all.find(x=>x.name===selectedTarget);
+  const chance=a&&t&&t.price>a.price?Math.min(.9,a.price/t.price*.9):0;
+  $id("source").value=a?a.id:"";
+  $id("target").value=t?t.name:"";
+  $id("chance").textContent=(chance*100).toFixed(2)+"%";
+  $id("upgrade-wheel").style.background=
+   `conic-gradient(#36d477 0deg ${chance*360}deg,#ed414b ${chance*360}deg 360deg)`;
+  $id("do-upgrade").disabled=!a||!t||t.price<=a.price||busy;
+  preview($id("source-preview"),a,"Инвентарь пуст");
+  preview($id("target-preview"),t,"Выбери желаемый предмет");
+  renderSource();
+  renderTarget();
+ }
+
  try{
-  inv=await api("/api/inventory");const cat=await api("/api/catalog");all=[...new Map(cat.flatMap(c=>c.items).map(x=>[x.name,x])).values()];
-  $("#source").innerHTML=inv.map(x=>`<option value="${x.id}">${x.name} — ${x.price} токенов</option>`).join("");
-  $("#target").innerHTML=all.map(x=>`<option value="${x.name}">${x.name} — ${x.price} токенов</option>`).join("");
-  const source=()=>inv.find(x=>x.id===$("#source").value),target=()=>all.find(x=>x.name===$("#target").value);
-  function update(){
-   const a=source(),t=target(),chance=a&&t&&t.price>a.price?Math.min(.9,a.price/t.price*.9):0;
-   $("#chance").textContent=(chance*100).toFixed(2)+"%";
-   $("#upgrade-wheel").style.background=`conic-gradient(#36d477 0deg ${chance*360}deg,#ed414b ${chance*360}deg 360deg)`;
-   $("#do-upgrade").disabled=!a||!t||t.price<=a.price||busy;
-   $("#source-preview").innerHTML="";$("#source-preview").append(a?makeSkinCard(a):document.createTextNode("Инвентарь пуст"));
-   $("#target-preview").innerHTML="";$("#target-preview").append(t?makeSkinCard(t):document.createTextNode("Нет цели"));
-  }
-  $("#source").onchange=update;$("#target").onchange=update;update();
-  $("#do-upgrade").onclick=async()=>{
-   if(busy)return;busy=true;update();$("#result").textContent="Колесо вращается…";$("#upgrade-wheel").classList.remove("wheel-win","wheel-lose");
+  inv=await api("/api/inventory");
+  const cat=await api("/api/catalog");
+  all=[...new Map(cat.flatMap(c=>c.items).map(x=>[x.name,x])).values()];
+  selectedSource=inv.length?String(inv[0].id):"";
+  renderSource();
+  renderTarget();
+  update();
+
+  $id("source-grid").addEventListener("click",e=>{
+   const b=e.target.closest(".upgrade-skin-card");
+   if(!b)return;
+   selectedSource=b.dataset.id;
+   selectedTarget="";
+   update();
+  });
+
+  $id("target-grid").addEventListener("click",e=>{
+   const b=e.target.closest(".upgrade-skin-card");
+   if(!b)return;
+   selectedTarget=b.dataset.name;
+   update();
+  });
+
+  ["source-search","source-sort"].forEach(id=>
+   $id(id).addEventListener("input",renderSource)
+  );
+  ["target-search","target-sort","target-min","target-max"].forEach(id=>
+   $id(id).addEventListener("input",renderTarget)
+  );
+
+  $id("do-upgrade").onclick=async()=>{
+   if(busy)return;
+   const a=inv.find(x=>String(x.id)===String(selectedSource));
+   const t=all.find(x=>x.name===selectedTarget);
+   if(!a||!t||t.price<=a.price)return;
+   busy=true;update();
+   $id("result").textContent="Колесо вращается…";
+   const wheel=$id("upgrade-wheel");
+   wheel.classList.remove("wheel-win","wheel-lose");
+
    try{
-    const d=await api("/api/upgrade",{method:"POST",body:JSON.stringify({itemId:$("#source").value,targetName:$("#target").value})});
-    const chance=d.chance,successAngle=360-(chance*360)/2,failAngle=360-(chance*360+(360-chance*360)/2),finalAngle=(d.won?successAngle:failAngle)+360*7;
-    const wheel=$("#upgrade-wheel");wheel.style.transition="none";wheel.style.transform="rotate(0deg)";void wheel.offsetWidth;wheel.style.transition="transform 5s cubic-bezier(.12,.72,.12,1)";wheel.style.transform=`rotate(${finalAngle}deg)`;
-    await new Promise(r=>setTimeout(r,5200));wheel.classList.add(d.won?"wheel-win":"wheel-lose");
-    $("#result").textContent=d.won?`УСПЕХ! Получен ${d.item.name} · ${d.item.price} токенов`:"НЕУДАЧА — предмет сгорел";
-    if(d.won){inv=inv.filter(x=>x.id!==$("#source").value);inv.unshift(d.item)}else inv=inv.filter(x=>x.id!==$("#source").value);
-    $("#source").innerHTML=inv.map(x=>`<option value="${x.id}">${x.name} — ${x.price} токенов</option>`).join("");
-    if(d.won)$("#target").value=d.item.name;
-    busy=false;update();
-   }catch(e){$("#result").textContent=e.message;busy=false;update()}
+    const d=await api("/api/upgrade",{
+     method:"POST",
+     body:JSON.stringify({itemId:selectedSource,targetName:selectedTarget})
+    });
+    const chance=d.chance;
+    const successAngle=360-(chance*360)/2;
+    const failAngle=360-(chance*360+(360-chance*360)/2);
+    const finalAngle=(d.won?successAngle:failAngle)+360*7;
+    wheel.style.transition="none";
+    wheel.style.transform="rotate(0deg)";
+    void wheel.offsetWidth;
+    wheel.style.transition="transform 5s cubic-bezier(.12,.72,.12,1)";
+    wheel.style.transform=`rotate(${finalAngle}deg)`;
+    await new Promise(r=>setTimeout(r,5200));
+    wheel.classList.add(d.won?"wheel-win":"wheel-lose");
+
+    $id("result").textContent=d.won
+     ?`УСПЕХ! Получен ${d.item.name} · ${d.item.price} токенов`
+     :"НЕУДАЧА — предмет сгорел";
+
+    inv=inv.filter(x=>String(x.id)!==String(selectedSource));
+    if(d.won){
+     inv.unshift(d.item);
+     selectedSource=String(d.item.id);
+     selectedTarget="";
+    }else{
+     selectedSource=inv.length?String(inv[0].id):"";
+     selectedTarget="";
+    }
+    busy=false;
+    update();
+   }catch(e){
+    $id("result").textContent=e.message;
+    busy=false;
+    update();
+   }
   };
- }catch(e){$("#result").textContent=e.message}
+ }catch(e){
+  $id("result").textContent=e.message;
+ }
 })();
