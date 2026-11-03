@@ -537,15 +537,28 @@ if ($("#source")) {
         const wheel = byId("upgrade-wheel");
         wheel.classList.remove("wheel-win", "wheel-lose");
 
-        try {
-          const d = await api("/api/upgrade", {
-            method: "POST",
-            body: JSON.stringify({
-              itemId: selectedSource,
-              targetName: selectedTarget,
-              extraBalance: extra
-            })
-          });
+      const d = await api("/api/upgrade", {
+  method: "POST",
+  body: JSON.stringify({
+    itemId: selectedSource,
+    targetName: selectedTarget,
+    extraBalance: extra
+  })
+});
+
+if (
+  typeof d.won !== "boolean" ||
+  typeof d.balance !== "number" ||
+  typeof d.extraBalance !== "number"
+) {
+  throw Error("Сервер вернул неполный результат апгрейда. Инвентарь не обновлён.");
+}
+
+if (d.extraBalance !== extra) {
+  throw Error(
+    `Ошибка доплаты: отправлено ${extra}, сервер принял ${d.extraBalance}.`
+  );
+}
 
           // Анимация показывает результат, уже определённый сервером.
           const chance = d.chance;
