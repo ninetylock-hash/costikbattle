@@ -19,6 +19,7 @@ function saveSteamUser(profile) {
 function changeBalance(id, amount) { const users = readUsers(); if (!users[id]) return null; users[id].balance += amount; writeUsers(users); return users[id]; }
 app.set("view engine", "ejs"); app.set("views", path.join(__dirname, "views"));
 app.use(express.static(path.join(__dirname, "public"))); app.use(express.urlencoded({ extended: false }));
+app.set("trust proxy", 1);
 app.use(session({ secret: process.env.SESSION_SECRET || "dev-only-change-me", resave: false, saveUninitialized: false,
   cookie: { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: 7 * 86400000 } }));
 app.use(passport.initialize()); app.use(passport.session());
