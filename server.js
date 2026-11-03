@@ -89,7 +89,16 @@ function rebuildCases(){cases=buildCases()}
 setInterval(rebuildCases,60*1000).unref();
 function weightedPick(list){const total=list.reduce((n,x)=>n+x.weight,0);let r=crypto.randomInt(1,total+1);for(const x of list){r-=x.weight;if(r<=0)return x}return list[list.length-1]}
 const items=[...new Map(cases.flatMap(c=>c.items).map(x=>[x.marketName,x])).values()];
-function getAllItems(){return [...new Map(cases.flatMap(c=>c.items).map(x=>[x.marketName,x])).values()]}
+function getAllItems() {
+  const catalogue = liveCatalogue();
+  const caseItems = cases.flatMap(c => c.items || []);
+
+  return [...new Map(
+    [...catalogue, ...caseItems]
+      .filter(x => x && x.name && Number(x.price) > 0)
+      .map(x => [x.marketName || x.name, x])
+  ).values()];
+}
 
 app.set("trust proxy",1);app.set("view engine","ejs");app.set("views",path.join(__dirname,"views"));app.use(express.static(path.join(__dirname,"public")));app.use(express.urlencoded({extended:false}));app.use(express.json());
 app.use(session({secret:process.env.SESSION_SECRET||"change-this-secret",resave:false,saveUninitialized:false,cookie:{httpOnly:true,sameSite:"lax",secure:process.env.NODE_ENV==="production",maxAge:604800000}}));app.use(passport.initialize());app.use(passport.session());
@@ -102,7 +111,9 @@ app.get("/auth/steam",passport.authenticate("steam",{failureRedirect:"/"}));app.
 app.post("/logout",(q,s,n)=>q.logout(e=>e?n(e):q.session.destroy(()=>s.redirect("/"))));
 app.get("/api/inventory",(q,s)=>q.user?s.json(read()[q.user.steam_id]?.inventory||[]):s.status(401).json({error:"Войдите через Steam"}));
 app.get("/api/catalog",(q,s)=>s.json(cases));
-
+app.get("/api/upgrade/catalog", (q, s) => {
+  s.json(getAllItems());
+});
 /* ===== ADMIN PANEL ===== */
 
 function safeSecretEqual(a, b) {
