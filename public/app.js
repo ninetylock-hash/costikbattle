@@ -608,3 +608,8 @@ byId("do-upgrade").onclick = async () => {
     update();
   }
 };
+    } catch (e) {
+      byId("result").textContent = e.message;
+    }
+  })();
+}
