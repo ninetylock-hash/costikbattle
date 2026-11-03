@@ -1,46 +1,10 @@
-# Costik Battle
+# Costik Battle 2.0
 
-Фан-проект с виртуальными кейсами CS2. Не связан с Case-Battle, Valve или Steam. Все балансы и дропы — демонстрационные; пополнения и вывод реальных денег отсутствуют.
+Install: `npm install`, then `npm start`.
 
-## Запуск локально
+Render Build Command: `npm install`; Start Command: `npm start`.
+Environment: `BASE_URL=https://costikbattle.onrender.com`, `NODE_ENV=production`, `SESSION_SECRET` (long random value), `STEAM_API_KEY`.
 
-1. Установите Node.js 20 или новее.
-2. Распакуйте архив и откройте папку проекта в терминале.
-3. Выполните:
-   ```bash
-   npm install
-   cp .env.example .env
-   npm run dev
-   ```
-4. Откройте http://localhost:3000.
+Included: 20 virtual cases, Steam OpenID login, server-side case drops, virtual inventory, selling for virtual coins, proportional server-side upgrades. Skin pictures are fetched from the community CSGO-API dataset when matching names exist.
 
-Без настройки Steam сайт откроется, но вход через Steam заработает только после настройки публичного адреса.
-
-## Настройка Steam OpenID
-
-1. Разместите приложение на хостинге с HTTPS и постоянным публичным адресом.
-2. В `.env` укажите `BASE_URL=https://ваш-домен.example` и длинный случайный `SESSION_SECRET`.
-3. Перезапустите сервер. Callback должен быть доступен по адресу `https://ваш-домен.example/auth/steam/return`.
-4. Вход использует Steam OpenID: сайт не просит и не хранит пароль Steam. Не вводите пароль Steam на сторонних формах — авторизация должна проходить на домене Steam.
-
-`STEAM_API_KEY` оставлен для возможного расширения профилей; базовая OpenID-авторизация не использует его.
-
-## Брендинг
-
-В шапке и интерфейсе используется только название COSTIK BATTLE. В комплект включён оригинальный баннер `public/costik-banner.png`.
-
-## Что уже работает
-
-- Steam OpenID login/logout (после настройки публичного HTTPS URL).
-- Сохранение Steam ID, ника, аватара и виртуального баланса в SQLite.
-- Три демонстрационных кейса, серверное списание виртуальных монет и случайный дроп.
-- Никаких платежей, депозитов, выводов или обмена предметов.
-
-## Перед публичным запуском
-
-Это стартовый фан-MVP, а не production-ready азартная платформа. Для реального хостинга замените стандартное хранилище сессий Express на SQLite/Redis session store, включите HTTPS, настройте резервные копии и rate limiting. Кнопки кейсов доступны только авторизованным игрокам. Баланс виртуальный и не имеет денежной стоимости.
-
-
-## Версия 3 — Windows / Node.js 26
-
-Удалён `better-sqlite3`, которому требовалась сборка через Visual Studio C++. Пользователи и виртуальный баланс хранятся в `data/users.json`. Для базы данных не нужны нативные модули.
+Important: case/item values in this MVP are sample virtual values, not live Steam Market quotes. Items cannot be withdrawn or traded. JSON user storage is ephemeral on Render free instances; data may be lost on restart/redeploy. Use persistent database/storage before treating inventories as durable.

@@ -1,19 +1,6 @@
-const modal = document.getElementById("modal");
-const dropName = document.getElementById("drop-name");
-const balanceEl = document.getElementById("balance");
-function showModal(name) { dropName.textContent = name; modal.classList.add("show"); modal.setAttribute("aria-hidden","false"); }
-function closeModal() { modal.classList.remove("show"); modal.setAttribute("aria-hidden","true"); }
-document.getElementById("close").addEventListener("click", closeModal);
-document.getElementById("again").addEventListener("click", closeModal);
-modal.addEventListener("click", e => { if (e.target === modal) closeModal(); });
-document.querySelectorAll(".open").forEach(button => button.addEventListener("click", async () => {
-  button.disabled = true; const old = button.textContent; button.textContent = "ОТКРЫВАЕМ...";
-  try {
-    const response = await fetch(`/api/open/${button.dataset.case}`, { method: "POST" });
-    const data = await response.json();
-    if (!response.ok) { alert(data.error || "Не удалось открыть кейс"); return; }
-    if (balanceEl) balanceEl.textContent = `${data.balance} 🪙`;
-    showModal(data.item);
-  } catch { alert("Ошибка соединения"); }
-  finally { button.disabled = false; button.textContent = old; }
-}));
+const $=s=>document.querySelector(s);async function api(url,opts={}){let r=await fetch(url,{headers:{"Content-Type":"application/json"},...opts}),d=await r.json();if(!r.ok)throw Error(d.error||"Ошибка");return d}
+let skinDataPromise;async function skinImage(name){if(!skinDataPromise)skinDataPromise=fetch("https://bymykel.github.io/CSGO-API/api/en/skins.json").then(r=>r.json()).catch(()=>[]);let db=await skinDataPromise;return db.find(x=>x.name===name)?.image||""}
+document.querySelectorAll(".open").forEach(b=>b.onclick=async()=>{try{let d=await api("/api/open/"+b.dataset.id,{method:"POST"});$("#item-name").textContent="РУЛЕТКА...";$("#item-price").textContent="Определяем выпавший предмет";$("#modal").classList.remove("hide");$("#item-name").classList.add("rolling");setTimeout(()=>{$("#item-name").textContent=d.item.name;$("#item-price").textContent=d.item.price+" виртуальных монет";$("#item-name").classList.remove("rolling")},1450)}catch(e){alert(e.message)}});
+if($("#close"))$("#close").onclick=()=>$("#modal").classList.add("hide");
+if($("#inventory"))(async()=>{try{let a=await api("/api/inventory");$("#inventory").innerHTML=a.length?a.map(x=>`<article class="item"><img data-name="${encodeURIComponent(x.name)}"><h3>${x.name}</h3><p>${x.price} виртуальных монет</p><button class="btn sell" data-id="${x.id}">ПРОДАТЬ</button></article>`).join(""):"Инвентарь пуст — открой кейс!";for(let im of document.querySelectorAll("[data-name]")){let src=await skinImage(decodeURIComponent(im.dataset.name));if(src)im.src=src}document.querySelectorAll(".sell").forEach(b=>b.onclick=async()=>{try{await api("/api/sell/"+b.dataset.id,{method:"POST"});location.reload()}catch(e){alert(e.message)}})}catch(e){$("#inventory").textContent=e.message}})();
+if($("#source"))(async()=>{try{let inv=await api("/api/inventory"),cat=await api("/api/catalog"),all=[...new Map(cat.flatMap(c=>c.items).map(x=>[x.name,x])).values()];$("#source").innerHTML=inv.map(x=>`<option value="${x.id}">${x.name} — ${x.price}</option>`).join("");$("#target").innerHTML=all.map(x=>`<option value="${x.name}">${x.name} — ${x.price}</option>`).join("");function calc(){let a=inv.find(x=>x.id===$("#source").value),t=all.find(x=>x.name===$("#target").value),p=a&&t&&t.price>a.price?100*a.price/t.price:0;$("#chance").textContent=p.toFixed(2)+"%";$("#bar").style.width=p+"%";$("#source-preview").textContent=a?`${a.name} — ${a.price} монет`:"Нет предмета";$("#target-preview").textContent=t?`${t.name} — ${t.price} монет`:"Выбери цель"}$("#source").onchange=calc;$("#target").onchange=calc;calc();$("#do-upgrade").onclick=async()=>{try{let d=await api("/api/upgrade",{method:"POST",body:JSON.stringify({itemId:$("#source").value,targetName:$("#target").value})});$("#result").textContent="РУЛЕТКА КРУТИТСЯ...";$("#result").classList.add("rolling");$("#do-upgrade").disabled=true;setTimeout(()=>{$("#result").textContent=d.won?"УСПЕХ! Получен "+d.item.name:"НЕУДАЧА — предмет потерян";$("#result").classList.remove("rolling");setTimeout(()=>location.reload(),1700)},1450)}catch(e){alert(e.message)}}}catch(e){$("#result").textContent=e.message}})();
