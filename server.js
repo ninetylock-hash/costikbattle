@@ -307,6 +307,93 @@ app.post("/api/open/:id/:count", (q, s) => {
     s.status(400).json({ error: e.message });
   }
 });
-app.post("/api/sell/:id",(q,s)=>{try{if(!q.user)throw Error("Войдите через Steam");let sold;const u=change(q.user.steam_id,u=>{const i=u.inventory.findIndex(x=>x.id===q.params.id);if(i<0)throw Error("Предмет не найден");sold=u.inventory.splice(i,1)[0];u.balance+=sold.price});s.json({balance:u.balance,sold})}catch(e){s.status(400).json({error:e.message})}});
-app.post("/api/upgrade",(q,s)=>{try{if(!q.user)throw Error("Войдите через Steam");const target=getAllItems().find(x=>x.marketName===q.body.targetName||x.name===q.body.targetName);if(!target)throw Error("Целевой предмет не найден");let won=false,chance=0,result=null;const u=change(q.user.steam_id,u=>{const i=u.inventory.findIndex(x=>x.id===q.body.itemId);if(i<0)throw Error("Предмет не найден");const src=u.inventory[i];if(target.price<=src.price)throw Error("Целевой предмет должен быть дороже");chance=Math.min(.90,(src.price/target.price)*.90);won=crypto.randomInt(1000000)<Math.floor(chance*1000000);u.inventory.splice(i,1);if(won){result={...target,id:crypto.randomUUID(),source:"Апгрейд"};u.inventory.unshift(result)}});s.json({won,chance,balance:u.balance,item:result,target,sourceName:q.body.itemId})}catch(e){s.status(400).json({error:e.message})}});
+app.post("/api/sell/:id",(q,s)=>{try{if(!q.user)throw Error("Войдите через Steam");let sold;const u=change(q.user.steam_id,u=>{const i=u.inventory.findIndex(x=>x.id===q.params.id);if(i<0)throw Error("Предмет не найден");sold=u.inventory.splice(i,1)[0];u.balance+=sold.price});s.json({balance:u.balance,sold})}catch(e){s.status(400).json({error:e.message})}});app.post("/api/upgrade",(q,s)=>{try{if(!q.user)throw Error("Войдите через Steam");const target=getAllItems().find(x=>x.marketName===q.body.targetName||x.name===q.body.targetName);if(!target)throw Error("Целевой предмет не найден");let won=false,chance=0,result=null;const u=change(q.user.steam_id,u=>{const i=u.inventory.findIndex(x=>x.id===q.body.itemId);if(i<0)throw Error("Предмет не найден");const src=u.inventory[i];if(target.price<=src.price)throw Error("Целевой предмет должен быть дороже");chance=Math.min(.90,(src.price/target.price)*.90);won=crypto.randomInt(1000000)<Math.floor(chance*1000000);u.inventory.splice(i,1);if(won){result={...target,id:crypto.randomUUID(),source:"Апгрейд"};u.inventory.unshift(result)}});s.json({won,chance,balance:u.balance,item:result,target,sourceName:q.body.itemId})}catch(e){s.status(400).json({error:e.message})}});
+
+app.post("/api/upgrade", (q, s) => {
+  try {
+    if (!q.user) throw Error("Войдите через Steam");
+
+    const itemId = String(q.body.itemId || "");
+    const targetName = String(q.body.targetName || "");
+    const extra = Number(q.body.extraBalance ?? 0);
+
+    if (!Number.isSafeInteger(extra) || extra < 0 || extra > 100000000) {
+      throw Error("Некорректная сумма доплаты");
+    }
+
+    const target = getAllItems().find(x =>
+      (x.marketName || x.name) === targetName || x.name === targetName
+    );
+
+    if (!target) throw Error("Целевой предмет не найден");
+
+    let won = false;
+    let chance = 0;
+    let result = null;
+
+    const u = change(q.user.steam_id, user => {
+      const index = user.inventory.findIndex(
+        x => String(x.id) === itemId
+      );
+
+      if (index < 0) throw Error("Исходный предмет не найден");
+
+      const source = user.inventory[index];
+      const sourcePrice = Number(source.price);
+      const targetPrice = Number(target.price);
+      const balance = Number(user.balance);
+
+      if (!Number.isFinite(sourcePrice) || sourcePrice <= 0) {
+        throw Error("Некорректная цена исходного предмета");
+      }
+
+      if (!Number.isFinite(targetPrice) || targetPrice <= sourcePrice) {
+        throw Error("Целевой предмет должен быть дороже");
+      }
+
+      if (!Number.isFinite(balance) || balance < extra) {
+        throw Error("Недостаточно токенов для доплаты");
+      }
+
+      // Цена исходного скина + доплата увеличивают шанс.
+      chance = Math.min(
+        0.90,
+        ((sourcePrice + extra) / targetPrice) * 0.90
+      );
+
+      // Списываем доплату.
+      user.balance = balance - extra;
+
+      // Исходный скин сгорает при любой попытке.
+      user.inventory.splice(index, 1);
+
+      // Сервер самостоятельно определяет результат.
+      won = crypto.randomInt(1000000) <
+        Math.floor(chance * 1000000);
+
+      if (won) {
+        result = {
+          ...target,
+          id: crypto.randomUUID(),
+          source: "Апгрейд"
+        };
+
+        user.inventory.unshift(result);
+      }
+    });
+
+    s.json({
+      won,
+      chance,
+      balance: u.balance,
+      item: result,
+      target,
+      extraBalance: extra
+    });
+
+  } catch (e) {
+    s.status(400).json({ error: e.message });
+  }
+});
+
 app.listen(PORT,()=>console.log("Costik Battle: "+BASE));
