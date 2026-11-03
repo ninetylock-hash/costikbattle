@@ -2,19 +2,17 @@
 <!doctype html>
 <html lang="ru">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Апгрейд — Costik Battle</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Апгрейд — COSTIK BATTLE</title>
 <link rel="stylesheet" href="/style.css?v=2400">
 <style>
 .upgrade-extra-box {
-  width:100%;
   margin:18px 0;
   padding:16px;
   border:1px solid #34394e;
   border-radius:12px;
   background:#111625;
-  text-align:left;
 }
 .upgrade-extra-box label {
   display:block;
@@ -22,6 +20,7 @@
   font-weight:bold;
 }
 .upgrade-extra-box input {
+  box-sizing:border-box;
   width:100%;
   padding:13px;
   border:1px solid #414965;
@@ -39,7 +38,6 @@
   font-size:13px;
 }
 .upgrade-extra-info b {color:#69e6a0}
-.upgrade-hint {line-height:1.5}
 .upgrade-warning {
   margin-top:10px;
   color:#ffbd70;
@@ -56,7 +54,11 @@
     <a href="/inventory">ИНВЕНТАРЬ</a>
     <a href="/upgrade">АПГРЕЙД</a>
   </nav>
-  <b><%=user.display_name%> · <span id="user-balance"><%=Number(user.balance).toLocaleString("ru-RU")%></span> токенов</b>
+  <b>
+    <%=user.display_name%> ·
+    <span id="user-balance"><%=Number(user.balance).toLocaleString("ru-RU")%></span>
+    токенов
+  </b>
 </header>
 
 <main class="upgrade-page">
@@ -83,7 +85,7 @@
       </select>
 
       <div id="source-grid" class="upgrade-skin-grid">
-        <p class="upgrade-loading">Загрузка инвентаря...</p>
+        <p>Загрузка инвентаря...</p>
       </div>
 
       <input type="hidden" id="source">
@@ -167,7 +169,7 @@
       </div>
 
       <div id="target-grid" class="upgrade-skin-grid">
-        <p class="upgrade-loading">Загрузка предметов...</p>
+        <p>Загрузка предметов...</p>
       </div>
 
       <input type="hidden" id="target">
