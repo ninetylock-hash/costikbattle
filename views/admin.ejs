@@ -1,0 +1,168 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>COSTIK BATTLE — ADMIN</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: #090b12;
+      color: #fff;
+      font-family: Arial, sans-serif;
+    }
+    .panel {
+      width: 100%;
+      max-width: 440px;
+      padding: 30px;
+      border: 1px solid #292d40;
+      border-radius: 18px;
+      background: #121522;
+      box-shadow: 0 20px 70px #0008;
+    }
+    h1 { margin-top: 0; font-size: 27px; }
+    .sub { color: #9299ad; margin-bottom: 25px; }
+    label {
+      display: block;
+      margin: 17px 0 8px;
+      color: #cbd0df;
+      font-size: 14px;
+    }
+    input {
+      width: 100%;
+      padding: 14px;
+      border: 1px solid #34394e;
+      border-radius: 9px;
+      background: #0b0e18;
+      color: white;
+      font-size: 16px;
+      outline: none;
+    }
+    button {
+      width: 100%;
+      margin-top: 20px;
+      padding: 15px;
+      border: 0;
+      border-radius: 9px;
+      background: #7b5cff;
+      color: white;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button:hover { background: #927aff; }
+    .hidden { display: none; }
+    #message {
+      margin-top: 18px;
+      padding: 12px;
+      border-radius: 8px;
+      background: #202538;
+      overflow-wrap: anywhere;
+    }
+    .success { color: #65e6a0; }
+    .error { color: #ff7777; }
+    .balance { color: #65e6a0; font-size: 20px; }
+  </style>
+</head>
+<body>
+  <main class="panel">
+    <h1>⚡ COSTIK ADMIN</h1>
+    <p class="sub">Панель управления балансом</p>
+
+    <section id="login">
+      <label for="secret">Пароль администратора</label>
+      <input id="secret" type="password" placeholder="Введи секретный пароль">
+      <button id="loginBtn">ВОЙТИ</button>
+    </section>
+
+    <section id="admin" class="hidden">
+      <label for="steamId">Steam ID пользователя</label>
+      <input id="steamId" placeholder="Например, 76561198000000000">
+
+      <label for="amount">Количество токенов</label>
+      <input id="amount" type="number" min="1" max="100000000" value="1000000">
+
+      <button id="addBtn">НАЧИСЛИТЬ ТОКЕНЫ</button>
+      <button id="logoutBtn" style="background:#34394e">ВЫЙТИ</button>
+    </section>
+
+    <div id="message" class="hidden"></div>
+  </main>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const message = $("message");
+
+    function showMessage(text, success = false) {
+      message.textContent = text;
+      message.className = success ? "success" : "error";
+      message.classList.remove("hidden");
+    }
+
+    async function request(url, body = {}) {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Ошибка запроса");
+      }
+
+      return data;
+    }
+
+    $("loginBtn").onclick = async () => {
+      try {
+        await request("/api/admin/login", {
+          secret: $("secret").value
+        });
+
+        $("login").classList.add("hidden");
+        $("admin").classList.remove("hidden");
+        message.classList.add("hidden");
+      } catch (e) {
+        showMessage(e.message);
+      }
+    };
+
+    $("addBtn").onclick = async () => {
+      try {
+        const data = await request("/api/admin/add-balance", {
+          steamId: $("steamId").value.trim(),
+          amount: Number($("amount").value)
+        });
+
+        showMessage(
+          data.message + ". Новый баланс: " +
+          data.balance.toLocaleString("ru-RU") + " токенов",
+          true
+        );
+      } catch (e) {
+        showMessage(e.message);
+      }
+    };
+
+    $("logoutBtn").onclick = async () => {
+      try {
+        await request("/api/admin/logout");
+        $("admin").classList.add("hidden");
+        $("login").classList.remove("hidden");
+        $("secret").value = "";
+        showMessage("Ты вышел из панели", true);
+      } catch (e) {
+        showMessage(e.message);
+      }
+    };
+  </script>
+</body>
+</html>
