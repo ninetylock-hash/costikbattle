@@ -103,28 +103,66 @@ app.post("/logout",(q,s,n)=>q.logout(e=>e?n(e):q.session.destroy(()=>s.redirect(
 app.get("/api/inventory",(q,s)=>q.user?s.json(read()[q.user.steam_id]?.inventory||[]):s.status(401).json({error:"Войдите через Steam"}));
 app.get("/api/catalog",(q,s)=>s.json(cases));
 
-// Админ-команда для начисления токенов
-app.post("/api/admin/add-balance", (q, s) => {
+/* ===== ADMIN PANEL ===== */
+
+function safeSecretEqual(a, b) {
+  if (typeof a !== "string" || typeof b !== "string") return false;
+
+  const A = Buffer.from(a);
+  const B = Buffer.from(b);
+
+  return A.length === B.length && crypto.timingSafeEqual(A, B);
+}
+
+// Страница администратора
+app.get("/admin", (q, s) => {
+  s.render("admin");
+});
+
+// Вход администратора
+app.post("/api/admin/login", (q, s) => {
   try {
     const secret = process.env.ADMIN_SECRET;
 
     if (!secret) {
-      throw Error("Админ-пароль не настроен");
+      throw Error("ADMIN_SECRET не настроен на Render");
     }
 
-    if (q.body.secret !== secret) {
-      return s.status(403).json({ error: "Неверный админ-пароль" });
+    if (!safeSecretEqual(q.body.secret, secret)) {
+      return s.status(403).json({ error: "Неверный пароль" });
+    }
+
+    q.session.admin = true;
+
+    q.session.save(err => {
+      if (err) return s.status(500).json({ error: "Ошибка сессии" });
+      s.json({ success: true });
+    });
+  } catch (e) {
+    s.status(400).json({ error: e.message });
+  }
+});
+
+// Начисление токенов — только после входа администратора
+app.post("/api/admin/add-balance", (q, s) => {
+  try {
+    if (q.session.admin !== true) {
+      return s.status(403).json({ error: "Нет доступа" });
     }
 
     const steamId = String(q.body.steamId || "");
     const amount = Number(q.body.amount);
 
     if (!/^\d{5,30}$/.test(steamId)) {
-      throw Error("Неверный Steam ID");
+      throw Error("Проверь Steam ID");
     }
 
-    if (!Number.isSafeInteger(amount) || amount < 1 || amount > 100000000) {
-      throw Error("Некорректное количество токенов");
+    if (
+      !Number.isSafeInteger(amount) ||
+      amount < 1 ||
+      amount > 100000000
+    ) {
+      throw Error("Некорректная сумма");
     }
 
     const u = change(steamId, user => {
@@ -133,13 +171,23 @@ app.post("/api/admin/add-balance", (q, s) => {
 
     s.json({
       success: true,
-      message: `Начислено ${amount} токенов`,
-      balance: u.balance
+      balance: u.balance,
+      message: `Начислено ${amount.toLocaleString("ru-RU")} токенов`
     });
   } catch (e) {
     s.status(400).json({ error: e.message });
   }
 });
+
+// Выход из панели
+app.post("/api/admin/logout", (q, s) => {
+  q.session.admin = false;
+  q.session.save(err => {
+    if (err) return s.status(500).json({ error: "Ошибка сессии" });
+    s.json({ success: true });
+  });
+});
+
 
 app.get("/api/market-status",(q,s)=>s.json({status:marketStatus,updatedAt:marketUpdatedAt,source:"Market.CSGO",currency:"TOKENS",tokenPeg:"1 token = 1 RUB (virtual demo economy)",live:marketPrices.size>0}));
 // Открытие одного или нескольких кейсов (до 10)
